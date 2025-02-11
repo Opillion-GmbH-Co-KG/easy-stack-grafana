@@ -1,0 +1,25 @@
+# config file version
+apiVersion: 1
+
+# list of datasources to insert/update
+datasources:
+  - name: MySQL
+    type: mysql
+    url: mysql:3305
+    user: admin
+    jsonData:
+      database: database_one
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: test123
+
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    access: proxy
+    editable: true
+

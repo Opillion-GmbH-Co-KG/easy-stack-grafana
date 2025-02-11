@@ -1,0 +1,3 @@
+ARG BASE_IMAGE_TAG=latest
+ARG DOCKER_REPO_NAME=opillion
+FROM ${DOCKER_REPO_NAME}/fritzbox-exporter:${BASE_IMAGE_TAG}

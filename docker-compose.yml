@@ -1,0 +1,204 @@
+services:
+
+  grafana:
+    hostname: grafana
+    container_name: grafana
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: grafana.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_EXTERNAL_PORT}:${GRAFANA_INTERNAL_PORT}" # "9009:3001"
+    environment:
+      # GF_DATABASE_TYPE: ${GF_DATABASE_TYPE}
+      # GF_DATABASE_HOST: ${GF_DATABASE_HOST}
+      # GF_DATABASE_NAME: ${GF_DATABASE_NAME}
+      # GF_DATABASE_USER: ${DATABASE_USER}
+      # GF_DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SMTP_ENABLED: ${GF_SMTP_ENABLED}
+      GF_SMTP_HOST: ${GF_SMTP_HOST}
+      GF_SMTP_USER: ${GF_SMTP_USER}
+      GF_SMTP_PASSWORD: ${GF_SMTP_PASSWORD}
+      GF_SMTP_SKIP_VERIFY: ${GF_SMTP_SKIP_VERIFY}
+      GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS}
+      GF_SMTP_FROM_NAME: ${GF_SMTP_FROM_NAME}
+      GF_INSTALL_PLUGINS: ${GF_INSTALL_PLUGINS}
+      GF_INSTALL_IMAGE_RENDERER_PLUGIN: ${GF_INSTALL_IMAGE_RENDERER_PLUGIN}
+      GF_LOG_LEVEL: ${GF_LOG_LEVEL}
+    volumes:
+      - ${GRAFANA_DATA_PATH:-grafana-data}:/var/lib/grafana
+      - ./.docker/dev/grafana/provisioning:/etc/grafana/provisioning
+      - ./.docker/dev/grafana/provisioning/grafana.ini:/etc/grafana/grafana.ini
+      - ./.docker/dev/grafana/provisioning/dashboards:/etc/grafana/dashboards
+      - ./.docker/dev/grafana/provisioning/datasources:/etc/grafana/datasources
+    healthcheck:
+      test: ["CMD", "grafana-cli", "plugins", "ls"]
+      interval: 16s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - default
+
+  prometheus:
+    hostname: prometheus
+    container_name: prometheus
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: prometheus.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${PROMETHEUS_EXTERNAL_PORT}:${PROMETHEUS_INTERNAL_PORT}" # "9091:9090"
+    volumes:
+      - ${PROMETHEUS_DATA_PATH:-prometheus-data}:/prometheus
+      - ./.docker/dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    healthcheck:
+      test: ["CMD-SHELL", "prometheus --version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - default
+
+  node-exporter:
+    hostname: node-exporter
+    container_name: node-exporter
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: node-exporter.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    restart: unless-stopped
+    expose:
+      - "${NODE_EXPORTER_INTERNAL_PORT}" # "9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    healthcheck:
+      test: ["CMD", "busybox", "nc", "-z", "node-exporter", "${NODE_EXPORTER_INTERNAL_PORT}"]
+      interval: 16s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - default
+
+  mysqld-exporter:
+    hostname: mysqld-exporter
+    container_name: mysqld-exporter
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: mysqld-exporter.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: ${DATA_SOURCE_NAME}
+      MYSQLD_EXPORTER_PASSWORD: ${DATABASE_PASSWORD}
+    expose:
+      - "${MYSQLD_EXPORTER_INTERNAL_PORT}" # "9104"
+    command: --web.listen-address=:9104
+    volumes:
+      - ./.docker/dev/mysqld-exporter/.my.cnf:/.my.cnf:ro
+    healthcheck:
+      test: ["CMD", "busybox", "nc", "-z", "mysqld-exporter", "9104"]
+      interval: 16s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - default
+
+
+  fritzbox-exporter:
+    hostname: fritzbox-exporter
+    container_name: fritzbox-exporter
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: fritzbox-exporter.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    expose:
+      - "${FRITZ_BOX_INTERNAL_PORT}" # 9042
+    restart: unless-stopped
+    environment:
+      USERNAME: ${FRITZ_BOX_USERNAME}
+      PASSWORD: ${FRITZ_BOX_PASSWORD}
+      GATEWAY_URL: ${FRITZ_BOX_GATEWAY_URL}
+      LISTEN_ADDRESS: ${FRITZ_BOX_LISTEN_ADDRESS}:${FRITZ_BOX_INTERNAL_PORT}
+    healthcheck:
+      test: ["CMD", "busybox", "nc", "-z", "fritzbox-exporter", "${FRITZ_BOX_INTERNAL_PORT}"]
+      interval: 16s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - default
+
+  speedtest-exporter:
+    hostname: speedtest-exporter
+    container_name: speedtest-exporter
+    build:
+      context: .docker/${DOCKER_IMAGE_SOURCE}/
+      dockerfile: speedtest-exporter.Dockerfile
+      args:
+        DOCKER_REPO: ${DOCKER_REPO}
+        BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}
+        DEV_IMAGE_TAG: ${DEV_IMAGE_TAG}
+        PROD_IMAGE_TAG: ${PROD_IMAGE_TAG}
+    expose:
+      - "${SPEED_TEST_INTERNAL_PORT}" #  9469
+    restart: unless-stopped
+    environment:
+      SPEEDTEST_PORT: ${SPEEDTEST_PORT}
+      # SPEEDTEST_SERVER: ${SPEEDTEST_SERVER}
+    healthcheck:
+      test: ["CMD", "busybox", "nc", "-z", "speedtest-exporter", "${SPEED_TEST_INTERNAL_PORT}"]
+      interval: 16s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - default
+
+volumes:
+  grafana-data:
+  prometheus-data:
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK}
+    driver: bridge
+    external: true
